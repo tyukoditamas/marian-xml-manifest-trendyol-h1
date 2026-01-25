@@ -57,6 +57,8 @@ public class GoodsDescriptionResolver {
                     description = fetchDescription(harmonized);
                     if (DEFAULT_DESCRIPTION.equals(description)) {
                         fallbackCount++;
+                    } else {
+                        description = trimToFirstComma(description);
                     }
                 } catch (Exception ex) {
                     taricUnavailable = true;
@@ -110,5 +112,16 @@ public class GoodsDescriptionResolver {
             throw ex;
         }
         return DEFAULT_DESCRIPTION;
+    }
+
+    private String trimToFirstComma(String description) {
+        if (description == null) {
+            return null;
+        }
+        int commaIndex = description.indexOf(',');
+        if (commaIndex == -1) {
+            return description;
+        }
+        return description.substring(0, commaIndex).trim();
     }
 }

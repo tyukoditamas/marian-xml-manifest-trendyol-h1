@@ -4,14 +4,16 @@ import java.math.BigDecimal;
 
 public class GoodsItem {
     private final String hsCode;
+    private final String hawb;
     private final String kgText;
     private final String valueText;
     private final BigDecimal valueAmount;
     private final String parcelsText;
     private String descriptionOfGoods;
 
-    public GoodsItem(String hsCode, String kgText, String valueText, BigDecimal valueAmount, String parcelsText) {
+    public GoodsItem(String hsCode, String hawb, String kgText, String valueText, BigDecimal valueAmount, String parcelsText) {
         this.hsCode = hsCode;
+        this.hawb = hawb;
         this.kgText = kgText;
         this.valueText = valueText;
         this.valueAmount = valueAmount;
@@ -21,6 +23,10 @@ public class GoodsItem {
 
     public String getHsCode() {
         return hsCode;
+    }
+
+    public String getHawb() {
+        return hawb;
     }
 
     public String getKgText() {

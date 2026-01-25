@@ -24,6 +24,7 @@ import java.util.regex.Pattern;
 
 public class ExcelGoodsItemReader {
     private static final String HEADER_HS_CODE = "HS CODE";
+    private static final String HEADER_HAWB = "HAWB (Last mile tracking)";
     private static final String HEADER_KG = "kg";
     private static final String HEADER_VALUE = "Valoare (Value)";
     private static final String HEADER_PARCELS = "colete (parcels no.)";
@@ -46,11 +47,16 @@ public class ExcelGoodsItemReader {
             Map<String, Integer> columns = headerInfo.columns;
             logger.info("Antet gasit pe randul " + (headerInfo.rowIndex + 1) + ".");
 
-            List<GoodsItem> items = new ArrayList<>();
+            Map<String, Map<String, Totals>> grouped = new java.util.TreeMap<>();
             int lastRow = sheet.getLastRowNum();
             for (int rowIndex = headerInfo.rowIndex + 1; rowIndex <= lastRow; rowIndex++) {
                 Row row = sheet.getRow(rowIndex);
                 if (row == null) {
+                    continue;
+                }
+
+                String hawb = cellText(row, columns.get(HEADER_HAWB), formatter, evaluator);
+                if (hawb == null || hawb.trim().isEmpty()) {
                     continue;
                 }
 
@@ -59,7 +65,10 @@ public class ExcelGoodsItemReader {
                     continue;
                 }
                 String trimmedHs = hsValue.trim();
-                if (!isHsCodeTotal(trimmedHs)) {
+                if (trimmedHs.isEmpty()) {
+                    continue;
+                }
+                if (isTotalRow(trimmedHs)) {
                     continue;
                 }
 
@@ -68,13 +77,30 @@ public class ExcelGoodsItemReader {
                     continue;
                 }
 
-                String kgText = safeNumericText(cellText(row, columns.get(HEADER_KG), formatter, evaluator));
-                String valueText = safeNumericText(cellText(row, columns.get(HEADER_VALUE), formatter, evaluator));
-                String parcelsText = safeNumericText(cellText(row, columns.get(HEADER_PARCELS), formatter, evaluator));
+                BigDecimal kgAmount = parseBigDecimal(safeNumericText(
+                        cellText(row, columns.get(HEADER_KG), formatter, evaluator)));
+                BigDecimal valueAmount = parseBigDecimal(safeNumericText(
+                        cellText(row, columns.get(HEADER_VALUE), formatter, evaluator)));
+                BigDecimal parcelsAmount = parseBigDecimal(safeNumericText(
+                        cellText(row, columns.get(HEADER_PARCELS), formatter, evaluator)));
 
-                BigDecimal valueAmount = parseBigDecimal(valueText);
-                GoodsItem item = new GoodsItem(hsCode, kgText, valueText, valueAmount, parcelsText);
-                items.add(item);
+                grouped
+                        .computeIfAbsent(hawb.trim(), key -> new java.util.TreeMap<>())
+                        .computeIfAbsent(hsCode, key -> new Totals())
+                        .add(kgAmount, valueAmount, parcelsAmount);
+            }
+
+            List<GoodsItem> items = new ArrayList<>();
+            for (Map.Entry<String, Map<String, Totals>> hawbEntry : grouped.entrySet()) {
+                for (Map.Entry<String, Totals> hsEntry : hawbEntry.getValue().entrySet()) {
+                    Totals totals = hsEntry.getValue();
+                    String kgText = formatNumeric(totals.kg);
+                    String valueText = formatNumeric(totals.value);
+                    String parcelsText = formatNumeric(totals.parcels);
+                    GoodsItem item = new GoodsItem(hsEntry.getKey(), hawbEntry.getKey(), kgText, valueText,
+                            totals.value, parcelsText);
+                    items.add(item);
+                }
             }
 
             return items;
@@ -90,6 +116,7 @@ public class ExcelGoodsItemReader {
             }
             Map<String, Integer> columns = resolveColumns(row, formatter, evaluator);
             if (columns.containsKey(HEADER_HS_CODE)
+                    && columns.containsKey(HEADER_HAWB)
                     && columns.containsKey(HEADER_KG)
                     && columns.containsKey(HEADER_VALUE)
                     && columns.containsKey(HEADER_PARCELS)) {
@@ -98,7 +125,7 @@ public class ExcelGoodsItemReader {
         }
         logger.error("Antetul nu a fost gasit in primele " + (maxRow + 1) + " randuri.", null);
         throw new IllegalStateException("Header row not found. Expected headers: " + HEADER_HS_CODE + ", "
-                + HEADER_KG + ", " + HEADER_VALUE + ", " + HEADER_PARCELS);
+                + HEADER_HAWB + ", " + HEADER_KG + ", " + HEADER_VALUE + ", " + HEADER_PARCELS);
     }
 
     private Map<String, Integer> resolveColumns(Row row, DataFormatter formatter, FormulaEvaluator evaluator) {
@@ -133,11 +160,8 @@ public class ExcelGoodsItemReader {
         return trimmed.isEmpty() ? null : trimmed;
     }
 
-    private boolean isHsCodeTotal(String value) {
+    private boolean isTotalRow(String value) {
         String lower = value.toLowerCase(Locale.ROOT);
-        if (lower.contains("grand total")) {
-            return false;
-        }
         return lower.contains("total");
     }
 
@@ -158,6 +182,31 @@ public class ExcelGoodsItemReader {
             return BigDecimal.ZERO;
         }
         return new BigDecimal(value.trim());
+    }
+
+    private String formatNumeric(BigDecimal value) {
+        if (value == null) {
+            return "";
+        }
+        return value.stripTrailingZeros().toPlainString();
+    }
+
+    private static class Totals {
+        private BigDecimal kg = BigDecimal.ZERO;
+        private BigDecimal value = BigDecimal.ZERO;
+        private BigDecimal parcels = BigDecimal.ZERO;
+
+        private void add(BigDecimal kgAmount, BigDecimal valueAmount, BigDecimal parcelsAmount) {
+            if (kgAmount != null) {
+                kg = kg.add(kgAmount);
+            }
+            if (valueAmount != null) {
+                value = value.add(valueAmount);
+            }
+            if (parcelsAmount != null) {
+                parcels = parcels.add(parcelsAmount);
+            }
+        }
     }
 
     private static class HeaderInfo {

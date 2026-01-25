@@ -39,6 +39,7 @@ public class XmlManifestGenerator {
         updatePreparationTime(root, ns2, commonNs);
         updateLrn(root, ns2, ns3, lrn);
         updateGoodsShipment(root, ns2, ns3, items);
+        updateCurrencyExchange(root, ns2, ns3);
 
         writeXml(document, outputFile);
         logger.info("XML scris pe disc.");
@@ -78,6 +79,14 @@ public class XmlManifestGenerator {
         }
     }
 
+    private void updateCurrencyExchange(Element root, Namespace ns2, Namespace ns3) {
+        Element currencyExchange = root.getChild("CurrencyExchange", ns2);
+        if (currencyExchange == null) {
+            return;
+        }
+        setText(currencyExchange, "internalCurrencyUnit", ns3, "EUR");
+    }
+
     private void updateGoodsShipment(Element root, Namespace ns2, Namespace ns3, List<GoodsItem> items) {
         Element goodsShipment = root.getChild("GoodsShipment", ns2);
         if (goodsShipment == null) {
@@ -111,7 +120,7 @@ public class XmlManifestGenerator {
             enTemplate.addContent(new Element("GoodsItemNumber", ns3));
             enTemplate.addContent(new Element("ValueTyp", ns3).setText("1"));
             enTemplate.addContent(new Element("CurValue", ns3));
-            enTemplate.addContent(new Element("CurCod", ns3).setText("RON"));
+            enTemplate.addContent(new Element("CurCod", ns3).setText("EUR"));
         }
 
         int itemNumber = 1;
@@ -123,6 +132,7 @@ public class XmlManifestGenerator {
             Element enForGoods = enTemplate.clone();
             setText(enForGoods, "GoodsItemNumber", ns3, String.valueOf(itemNumber));
             setText(enForGoods, "CurValue", ns3, item.getValueText());
+            setText(enForGoods, "CurCod", ns3, "EUR");
             evaluationNote.addContent(enForGoods);
 
             itemNumber++;
@@ -133,6 +143,8 @@ public class XmlManifestGenerator {
 
     private void updateGoodsShipmentItem(Element goodsItem, Namespace ns3, int itemNumber, GoodsItem item) {
         setText(goodsItem, "declarationGoodsItemNumber", ns3, String.valueOf(itemNumber));
+
+        insertPreviousDocument(goodsItem, ns3, item.getHawb());
 
         Element commodity = goodsItem.getChild("Commodity", ns3);
         if (commodity != null) {
@@ -149,7 +161,7 @@ public class XmlManifestGenerator {
             Element goodsMeasure = commodity.getChild("GoodsMeasure", ns3);
             if (goodsMeasure != null) {
                 setText(goodsMeasure, "grossMass", ns3, item.getKgText());
-                setText(goodsMeasure, "netMass", ns3, item.getKgText());
+                setText(goodsMeasure, "netMass", ns3, netMassText(item.getKgText()));
                 setText(goodsMeasure, "suppUnitAmount", ns3, item.getParcelsText());
             }
 
@@ -163,6 +175,48 @@ public class XmlManifestGenerator {
         if (packaging != null) {
             setText(packaging, "numberOfPackages", ns3, item.getParcelsText());
         }
+
+        Element origin = goodsItem.getChild("Origin", ns3);
+        if (origin != null) {
+            setText(origin, "countryOfOrigin", ns3, "TR");
+        }
+    }
+
+    private void insertPreviousDocument(Element goodsItem, Namespace ns3, String hawb) {
+        if (hawb == null || hawb.trim().isEmpty()) {
+            return;
+        }
+
+        goodsItem.removeChildren("PreviousDocument", ns3);
+
+        Element previousDocument = new Element("PreviousDocument", ns3);
+        previousDocument.addContent(new Element("sequenceNumber", ns3).setText("1"));
+        previousDocument.addContent(new Element("referenceNumber", ns3).setText(hawb.trim()));
+        previousDocument.addContent(new Element("type", ns3).setText("N740"));
+
+        List<Element> additionalRefs = goodsItem.getChildren("AdditionalReference", ns3);
+        if (!additionalRefs.isEmpty()) {
+            int index = goodsItem.indexOf(additionalRefs.get(0));
+            if (index < 0) {
+                goodsItem.addContent(previousDocument);
+            } else {
+                goodsItem.addContent(index, previousDocument);
+            }
+            return;
+        }
+
+        Element procedure = goodsItem.getChild("Procedure", ns3);
+        if (procedure != null) {
+            int index = goodsItem.indexOf(procedure);
+            if (index < 0) {
+                goodsItem.addContent(previousDocument);
+            } else {
+                goodsItem.addContent(index + 1, previousDocument);
+            }
+            return;
+        }
+
+        goodsItem.addContent(previousDocument);
     }
 
     private String totalAmount(List<GoodsItem> items) {
@@ -185,6 +239,19 @@ public class XmlManifestGenerator {
             return "";
         }
         return value.substring(start, Math.min(end, value.length()));
+    }
+
+    private String netMassText(String grossMassText) {
+        if (grossMassText == null || grossMassText.trim().isEmpty()) {
+            return "";
+        }
+        try {
+            BigDecimal gross = new BigDecimal(grossMassText.trim());
+            BigDecimal net = gross.multiply(new BigDecimal("0.95"));
+            return net.stripTrailingZeros().toPlainString();
+        } catch (NumberFormatException ex) {
+            return grossMassText;
+        }
     }
 
     private void writeXml(Document document, File outputFile) throws IOException {
