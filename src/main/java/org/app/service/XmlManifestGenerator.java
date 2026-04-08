@@ -84,7 +84,7 @@ public class XmlManifestGenerator {
         if (currencyExchange == null) {
             return;
         }
-        setText(currencyExchange, "internalCurrencyUnit", ns3, "EUR");
+        setText(currencyExchange, "internalCurrencyUnit", ns3, "RON");
     }
 
     private void updateGoodsShipment(Element root, Namespace ns2, Namespace ns3, List<GoodsItem> items) {
@@ -148,7 +148,7 @@ public class XmlManifestGenerator {
 
         Element commodity = goodsItem.getChild("Commodity", ns3);
         if (commodity != null) {
-            setText(commodity, "descriptionOfGoods", ns3, item.getDescriptionOfGoods());
+            setText(commodity, "descriptionOfGoods", ns3, commodityDescription(item));
 
             Element commodityCode = commodity.getChild("CommodityCode", ns3);
             if (commodityCode != null) {
@@ -173,12 +173,12 @@ public class XmlManifestGenerator {
 
         Element packaging = goodsItem.getChild("Packaging", ns3);
         if (packaging != null) {
-            setText(packaging, "numberOfPackages", ns3, item.getParcelsText());
+            setText(packaging, "numberOfPackages", ns3, "0");
         }
 
         Element origin = goodsItem.getChild("Origin", ns3);
         if (origin != null) {
-            setText(origin, "countryOfOrigin", ns3, "TR");
+            setText(origin, "countryOfOrigin", ns3, item.getOriginCountry());
         }
     }
 
@@ -225,6 +225,18 @@ public class XmlManifestGenerator {
             total = total.add(item.getValueAmount());
         }
         return total.stripTrailingZeros().toPlainString();
+    }
+
+    private String commodityDescription(GoodsItem item) {
+        String description = item.getDescriptionOfGoods();
+        String parcels = item.getParcelsText();
+        if (parcels == null || parcels.trim().isEmpty()) {
+            return description;
+        }
+        if (description == null || description.trim().isEmpty()) {
+            return parcels.trim() + " buc";
+        }
+        return description.trim() + " - " + parcels.trim() + " buc";
     }
 
     private void setText(Element parent, String childName, Namespace namespace, String value) {

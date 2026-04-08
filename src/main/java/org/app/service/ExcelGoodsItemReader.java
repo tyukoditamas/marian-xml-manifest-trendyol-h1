@@ -97,8 +97,8 @@ public class ExcelGoodsItemReader {
                     String kgText = formatNumeric(totals.kg);
                     String valueText = formatNumeric(totals.value);
                     String parcelsText = formatNumeric(totals.parcels);
-                    GoodsItem item = new GoodsItem(hsEntry.getKey(), hawbEntry.getKey(), kgText, valueText,
-                            totals.value, parcelsText);
+                    GoodsItem item = new GoodsItem(hsEntry.getKey(), hawbEntry.getKey(), hawbEntry.getKey(),
+                            kgText, valueText, totals.value, parcelsText);
                     items.add(item);
                 }
             }

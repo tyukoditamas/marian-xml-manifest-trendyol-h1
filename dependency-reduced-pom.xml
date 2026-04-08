@@ -3,7 +3,7 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>org.app</groupId>
   <artifactId>xml-manifest-trendyol-h1</artifactId>
-  <version>1.0</version>
+  <version>1.1</version>
   <build>
     <plugins>
       <plugin>

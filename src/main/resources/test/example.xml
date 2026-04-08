@@ -153,7 +153,7 @@
                <ns3:itemAmountInvoiced>515.25</ns3:itemAmountInvoiced>
             </ns3:InvoiceLine>
             <ns3:CalculationOfTaxes>
-               <ns3:preference>400</ns3:preference>
+               <ns3:preference>100</ns3:preference>
             </ns3:CalculationOfTaxes>
          </ns3:Commodity>
          <ns3:Origin>
@@ -216,7 +216,7 @@
                <ns3:itemAmountInvoiced>173.66</ns3:itemAmountInvoiced>
             </ns3:InvoiceLine>
             <ns3:CalculationOfTaxes>
-               <ns3:preference>400</ns3:preference>
+               <ns3:preference>100</ns3:preference>
             </ns3:CalculationOfTaxes>
          </ns3:Commodity>
          <ns3:Origin>
@@ -271,7 +271,7 @@
                <ns3:itemAmountInvoiced>139.98</ns3:itemAmountInvoiced>
             </ns3:InvoiceLine>
             <ns3:CalculationOfTaxes>
-               <ns3:preference>400</ns3:preference>
+               <ns3:preference>100</ns3:preference>
             </ns3:CalculationOfTaxes>
          </ns3:Commodity>
          <ns3:Origin>
@@ -321,7 +321,7 @@
                <ns3:itemAmountInvoiced>81.38</ns3:itemAmountInvoiced>
             </ns3:InvoiceLine>
             <ns3:CalculationOfTaxes>
-               <ns3:preference>400</ns3:preference>
+               <ns3:preference>100</ns3:preference>
             </ns3:CalculationOfTaxes>
          </ns3:Commodity>
          <ns3:Origin>

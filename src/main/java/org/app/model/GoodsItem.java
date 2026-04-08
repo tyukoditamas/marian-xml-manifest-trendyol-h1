@@ -5,15 +5,18 @@ import java.math.BigDecimal;
 public class GoodsItem {
     private final String hsCode;
     private final String hawb;
+    private final String originCountry;
     private final String kgText;
     private final String valueText;
     private final BigDecimal valueAmount;
     private final String parcelsText;
     private String descriptionOfGoods;
 
-    public GoodsItem(String hsCode, String hawb, String kgText, String valueText, BigDecimal valueAmount, String parcelsText) {
+    public GoodsItem(String hsCode, String hawb, String originCountry, String kgText, String valueText,
+                     BigDecimal valueAmount, String parcelsText) {
         this.hsCode = hsCode;
         this.hawb = hawb;
+        this.originCountry = originCountry;
         this.kgText = kgText;
         this.valueText = valueText;
         this.valueAmount = valueAmount;
@@ -27,6 +30,10 @@ public class GoodsItem {
 
     public String getHawb() {
         return hawb;
+    }
+
+    public String getOriginCountry() {
+        return originCountry;
     }
 
     public String getKgText() {
