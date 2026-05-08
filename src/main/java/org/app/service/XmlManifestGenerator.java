@@ -38,6 +38,7 @@ public class XmlManifestGenerator {
 
         updatePreparationTime(root, ns2, commonNs);
         updateLrn(root, ns2, ns3, lrn);
+        updateNationalDeclaration(root, ns2, ns3);
         updateGoodsShipment(root, ns2, ns3, items);
         updateCurrencyExchange(root, ns2, ns3);
 
@@ -79,6 +80,36 @@ public class XmlManifestGenerator {
         }
     }
 
+    private void updateNationalDeclaration(Element root, Namespace ns2, Namespace ns3) {
+        Element nationalDeclaration = root.getChild("NationalDeclaration", ns2);
+        if (nationalDeclaration == null) {
+            return;
+        }
+
+        nationalDeclaration.removeChildren("AdvancePaymentDeposit", ns3);
+
+        Element advancePaymentDeposit = new Element("AdvancePaymentDeposit", ns3);
+        advancePaymentDeposit.addContent(new Element("Reference", ns3).setText("52455"));
+        advancePaymentDeposit.addContent(new Element("Password", ns3).setText("1546"));
+
+        List<Element> compensationDeposits = nationalDeclaration.getChildren("CompensationDeposit", ns3);
+        if (!compensationDeposits.isEmpty()) {
+            Element lastCompensationDeposit = compensationDeposits.get(compensationDeposits.size() - 1);
+            int index = nationalDeclaration.indexOf(lastCompensationDeposit);
+            nationalDeclaration.addContent(index + 1, advancePaymentDeposit);
+            return;
+        }
+
+        Element safetySecurityFeatures = nationalDeclaration.getChild("SafetySecurityFeatures", ns3);
+        if (safetySecurityFeatures != null) {
+            int index = nationalDeclaration.indexOf(safetySecurityFeatures);
+            nationalDeclaration.addContent(index + 1, advancePaymentDeposit);
+            return;
+        }
+
+        nationalDeclaration.addContent(advancePaymentDeposit);
+    }
+
     private void updateCurrencyExchange(Element root, Namespace ns2, Namespace ns3) {
         Element currencyExchange = root.getChild("CurrencyExchange", ns2);
         if (currencyExchange == null) {
@@ -97,6 +128,7 @@ public class XmlManifestGenerator {
         if (totalAmount != null) {
             totalAmount.setText(totalAmount(items));
         }
+        setText(goodsShipment, "invoiceCurrency", ns3, "EUR");
 
         List<Element> existingItems = goodsShipment.getChildren("GoodsShipmentItem", ns3);
         if (existingItems.isEmpty()) {
