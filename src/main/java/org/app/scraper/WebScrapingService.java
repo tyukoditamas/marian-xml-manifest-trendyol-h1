@@ -7,7 +7,8 @@ import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
 
 import java.time.LocalDate;
-import java.util.regex.Pattern;
+import java.util.ArrayList;
+import java.util.List;
 
 public class WebScrapingService {
 
@@ -17,10 +18,12 @@ public class WebScrapingService {
     public static class TaricResult {
         private final String description;
         private final String subCode;
+        private final String correctedCode;
 
-        public TaricResult(String description, String subCode) {
+        public TaricResult(String description, String subCode, String correctedCode) {
             this.description = description;
             this.subCode = subCode;
+            this.correctedCode = correctedCode;
         }
 
         public String getDescription() {
@@ -30,18 +33,51 @@ public class WebScrapingService {
         public String getSubCode() {
             return subCode;
         }
+
+        public String getCorrectedCode() {
+            return correctedCode;
+        }
     }
 
     public TaricResult getTaricInfo(String hsCode) throws Exception {
-        String raw = hsCode.replaceAll("\\s+", "");
-        LocalDate now = LocalDate.now();
+        String raw = normalizeCode(hsCode);
+        if (raw.length() < 6) {
+            return new TaricResult("", "", raw);
+        }
 
+        String queryCode = raw.substring(0, 6);
+        List<TaricRow> rows = fetchRows(queryCode);
+        if (raw.length() >= 8) {
+            String queryEight = raw.substring(0, 8);
+            if (!queryEight.equals(queryCode)) {
+                rows.addAll(fetchRows(queryEight));
+            }
+        }
+        rows = reindex(rows);
+
+        TaricRow selected = selectCorrectedRow(rows, raw);
+        if (selected == null) {
+            return new TaricResult("", "", raw);
+        }
+
+        String correctedCode = canonicalCode(selected.digits);
+        if (correctedCode.isEmpty()) {
+            correctedCode = raw;
+        }
+
+        String header = findNearestHeader(rows, selected.index);
+        String description = isUsableDescription(header) ? header : selected.description;
+        return new TaricResult(description, subCode(correctedCode), correctedCode);
+    }
+
+    private List<TaricRow> fetchRows(String queryCode) throws Exception {
+        LocalDate now = LocalDate.now();
         Connection.Response resp = Jsoup.connect(BASE)
                 .userAgent("Mozilla/5.0")
                 .ignoreContentType(true)
                 .method(Connection.Method.GET)
                 .data("issection", "n")
-                .data("expandelem", raw)
+                .data("expandelem", queryCode)
                 .data("importbutton", "Navigare nomenclatura-import")
                 .data("Country", "--------")
                 .data("Year", String.valueOf(now.getYear()))
@@ -50,118 +86,190 @@ public class WebScrapingService {
                 .data("startpos", "1")
                 .data("ctmode", "C")
                 .execute();
-
-        Document doc = resp.parse();
-
-        Element codeAnchor = doc.selectFirst(
-                "a[href*=\"expandelem=" + raw + "\"]"
-        );
-        Element codeTr = null;
-        if (codeAnchor != null) {
-            codeTr = codeAnchor.closest("tr");
-        }
-
-        String subTwo = "";
-        if (codeTr != null) {
-            String code6 = raw.length() >= 6 ? raw.substring(0, 6) : raw;
-            for (Element next = codeTr.nextElementSibling();
-                 next != null;
-                 next = next.nextElementSibling()) {
-                Elements tds = next.select("td");
-                if (tds.size() >= 2) {
-                    String digitsOnly = tds.get(0).text()
-                            .replaceAll("\\D+", "");
-                    if (digitsOnly.startsWith(code6) && digitsOnly.length() > code6.length()) {
-                        if (digitsOnly.length() >= 8) {
-                            subTwo = digitsOnly.substring(6, 8);
-                        }
-                        break;
-                    }
-                }
-            }
-        }
-
-        String code4 = raw.length() >= 4 ? raw.substring(0, 4) : raw;
-        String desc4 = findRowDescription(doc, code4);
-        if (!desc4.isEmpty()) {
-            return new TaricResult(desc4, subTwo);
-        }
-
-        if (codeAnchor != null) {
-
-            String header = "";
-            for (Element prev = codeTr.previousElementSibling();
-                 prev != null;
-                 prev = prev.previousElementSibling()) {
-                Elements tds = prev.select("td");
-                if (tds.size() >= 2) {
-                    String left = tds.get(0).text()
-                            .replace("\u00A0", "")
-                            .trim();
-                    if (left.isEmpty()) {
-                        header = tds.get(1).text()
-                                .replaceFirst("^-+\\s*", "")
-                                .trim();
-                        break;
-                    }
-                }
-            }
-
-            if (header.isEmpty() && raw.length() >= 6 && raw.endsWith("00")) {
-                String grp4 = raw.substring(0, 4);
-                Element grpAnchor = doc.selectFirst(
-                        "a[name=POS][href*=\"expandelem=" + grp4 + "\"]"
-                );
-                if (grpAnchor != null) {
-                    Element headerRow = grpAnchor.parent().nextElementSibling();
-                    if (headerRow != null) {
-                        header = headerRow.text()
-                                .replaceFirst("^-+\\s*", "")
-                                .trim();
-                    }
-                }
-            }
-
-            final String descBase;
-            if (!header.isEmpty() && !"Altele".equalsIgnoreCase(header)) {
-                descBase = header;
-            } else {
-                Element inline = codeAnchor.parent().nextElementSibling();
-                descBase = (inline != null
-                        ? inline.text().replaceFirst("^-+\\s*", "").trim()
-                        : "");
-            }
-            return new TaricResult(descBase, subTwo);
-        }
-
-        String code6 = raw.length() > 6 ? raw.substring(0, 6) : raw;
-        String regex = "^\\s*" + Pattern.quote(code6) + "\\s*$";
-        Element td = doc.selectFirst("td:matchesOwn(" + regex + ")");
-        String fallbackDesc = "";
-        if (td != null && td.nextElementSibling() != null) {
-            fallbackDesc = td.nextElementSibling().text()
-                    .replaceFirst("^-+\\s*", "")
-                    .trim();
-        }
-
-        return new TaricResult(fallbackDesc, "");
+        return parseRows(resp.parse());
     }
 
-    private String findRowDescription(Document doc, String code) {
-        if (code == null || code.isEmpty()) {
-            return "";
-        }
+    private List<TaricRow> parseRows(Document doc) {
+        List<TaricRow> rows = new ArrayList<>();
         for (Element tr : doc.select("tr")) {
-            Elements tds = tr.select("td");
+            Elements tds = directCells(tr);
             if (tds.size() >= 2) {
-                String digits = tds.get(0).text().replaceAll("\\D+", "");
-                if (digits.equals(code)) {
-                    return tds.get(1).text()
-                            .replaceFirst("^-+\\s*", "")
-                            .trim();
+                String first = tds.get(0).text().replace('\u00A0', ' ').trim();
+                String digits = normalizeCode(first);
+                String description = cleanDescription(tds.get(1).text());
+                if (!description.isEmpty()) {
+                    rows.add(new TaricRow(rows.size(), digits, description));
                 }
+            }
+        }
+        return rows;
+    }
+
+    private List<TaricRow> reindex(List<TaricRow> rows) {
+        List<TaricRow> reindexed = new ArrayList<>();
+        for (TaricRow row : rows) {
+            reindexed.add(new TaricRow(reindexed.size(), row.digits, row.description));
+        }
+        return reindexed;
+    }
+
+    private Elements directCells(Element tr) {
+        Elements cells = new Elements();
+        for (Element child : tr.children()) {
+            if ("td".equalsIgnoreCase(child.tagName())) {
+                cells.add(child);
+            }
+        }
+        return cells;
+    }
+
+    private TaricRow selectCorrectedRow(List<TaricRow> rows, String raw) {
+        TaricRow exactTen = findExactTen(rows, raw);
+        if (exactTen != null) {
+            return exactTen;
+        }
+
+        TaricRow tenDigitChild = findTenDigitChild(rows, raw);
+        if (tenDigitChild != null) {
+            return tenDigitChild;
+        }
+
+        TaricRow exactCanonical = findExactCanonical(rows, raw);
+        if (exactCanonical != null) {
+            return exactCanonical;
+        }
+
+        return findClosest(rows, raw);
+    }
+
+    private TaricRow findExactTen(List<TaricRow> rows, String raw) {
+        for (TaricRow row : rows) {
+            if (row.digits.length() == 10 && raw.equals(row.digits) && isUsableDescription(row.description)) {
+                return row;
+            }
+        }
+        return null;
+    }
+
+    private TaricRow findTenDigitChild(List<TaricRow> rows, String raw) {
+        if (raw.length() < 8 || !raw.endsWith("00")) {
+            return null;
+        }
+        String prefixEight = raw.substring(0, 8);
+        for (TaricRow row : rows) {
+            if (row.digits.length() == 10
+                    && row.digits.startsWith(prefixEight)
+                    && isUsableDescription(row.description)) {
+                return row;
+            }
+        }
+        return null;
+    }
+
+    private TaricRow findExactCanonical(List<TaricRow> rows, String raw) {
+        for (TaricRow row : rows) {
+            if (raw.equals(canonicalCode(row.digits)) && isUsableDescription(row.description)) {
+                return row;
+            }
+        }
+        return null;
+    }
+
+    private TaricRow findClosest(List<TaricRow> rows, String raw) {
+        TaricRow closest = null;
+        int bestScore = 0;
+        int bestLength = 0;
+        for (TaricRow row : rows) {
+            if (row.digits.isEmpty() || !isUsableDescription(row.description)) {
+                continue;
+            }
+            String candidate = canonicalCode(row.digits);
+            int score = commonPrefixLength(raw, candidate);
+            if (score < 4) {
+                continue;
+            }
+            if (score > bestScore || (score == bestScore && candidate.length() > bestLength)) {
+                closest = row;
+                bestScore = score;
+                bestLength = candidate.length();
+            }
+        }
+        return closest;
+    }
+
+    private String findNearestHeader(List<TaricRow> rows, int beforeIndex) {
+        for (int i = beforeIndex - 1; i >= 0; i--) {
+            TaricRow row = rows.get(i);
+            if (row.digits.isEmpty() && isUsableDescription(row.description)) {
+                return row.description;
             }
         }
         return "";
+    }
+
+    private int commonPrefixLength(String left, String right) {
+        int max = Math.min(left.length(), right.length());
+        int count = 0;
+        while (count < max && left.charAt(count) == right.charAt(count)) {
+            count++;
+        }
+        return count;
+    }
+
+    private String subCode(String code) {
+        return code.length() >= 8 ? code.substring(6, 8) : "";
+    }
+
+    private String canonicalCode(String code) {
+        if (code == null || code.isEmpty()) {
+            return "";
+        }
+        if (code.length() >= 10) {
+            return code.substring(0, 10);
+        }
+        if (code.length() == 8) {
+            return code + "00";
+        }
+        if (code.length() == 6) {
+            return code + "0000";
+        }
+        return code;
+    }
+
+    private String normalizeCode(String value) {
+        if (value == null) {
+            return "";
+        }
+        String digits = value.replaceAll("\\D+", "");
+        return digits.length() > 10 ? digits.substring(0, 10) : digits;
+    }
+
+    private String cleanDescription(String description) {
+        if (description == null) {
+            return "";
+        }
+        return description
+                .replaceFirst("(?i)\\s*Nota de subsol\\s+TN\\d+\\s*$", "")
+                .replaceAll("^[\\s\\-]+", "")
+                .trim();
+    }
+
+    private boolean isUsableDescription(String description) {
+        if (description == null || description.trim().isEmpty()) {
+            return false;
+        }
+        return !"Altele".equalsIgnoreCase(description.trim());
+    }
+
+    private static class TaricRow {
+        private final int index;
+        private final String digits;
+        private final String description;
+
+        private TaricRow(int index, String digits, String description) {
+            this.index = index;
+            this.digits = digits;
+            this.description = description;
+        }
     }
 }

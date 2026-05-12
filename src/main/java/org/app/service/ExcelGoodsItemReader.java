@@ -30,6 +30,7 @@ public class ExcelGoodsItemReader {
     private static final String HEADER_KG = "kg";
     private static final String HEADER_VALUE = "Valoare (Value)";
     private static final String HEADER_PARCELS = "colete (parcels no.)";
+    private static final String HEADER_DESCRIPTION = "descriere bunuri / Description of goods (limba romana !)";
     private static final int HEADER_SCAN_LIMIT = 50;
 
     private static final Pattern LEADING_DIGITS = Pattern.compile("^(\\d+)");
@@ -85,10 +86,11 @@ public class ExcelGoodsItemReader {
                         cellText(row, columns.get(HEADER_VALUE), formatter, evaluator)));
                 BigDecimal parcelsAmount = parseBigDecimal(safeNumericText(
                         cellText(row, columns.get(HEADER_PARCELS), formatter, evaluator)));
+                String description = cellText(row, columns.get(HEADER_DESCRIPTION), formatter, evaluator);
 
                 grouped
                         .computeIfAbsent(hsCode, key -> new Totals())
-                        .add(kgAmount, valueAmount, parcelsAmount, hawb.trim());
+                        .add(kgAmount, valueAmount, parcelsAmount, hawb.trim(), description);
             }
 
             List<GoodsItem> items = new ArrayList<>();
@@ -101,6 +103,7 @@ public class ExcelGoodsItemReader {
                 String firstHawb = hawbs.isEmpty() ? "" : hawbs.get(0);
                 GoodsItem item = new GoodsItem(hsEntry.getKey(), firstHawb, firstHawb,
                         kgText, valueText, totals.value, parcelsText, hawbs);
+                item.setDescriptionOfGoods(totals.description);
                 items.add(item);
             }
 
@@ -197,8 +200,10 @@ public class ExcelGoodsItemReader {
         private BigDecimal value = BigDecimal.ZERO;
         private BigDecimal parcels = BigDecimal.ZERO;
         private final Set<String> hawbs = new LinkedHashSet<>();
+        private String description = "";
 
-        private void add(BigDecimal kgAmount, BigDecimal valueAmount, BigDecimal parcelsAmount, String hawb) {
+        private void add(BigDecimal kgAmount, BigDecimal valueAmount, BigDecimal parcelsAmount,
+                         String hawb, String rowDescription) {
             if (kgAmount != null) {
                 kg = kg.add(kgAmount);
             }
@@ -210,6 +215,9 @@ public class ExcelGoodsItemReader {
             }
             if (hawb != null && !hawb.trim().isEmpty()) {
                 hawbs.add(hawb.trim());
+            }
+            if (description.isEmpty() && rowDescription != null && !rowDescription.trim().isEmpty()) {
+                description = rowDescription.trim();
             }
         }
 

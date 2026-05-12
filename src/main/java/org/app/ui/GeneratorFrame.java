@@ -2,11 +2,13 @@ package org.app.ui;
 
 import javax.swing.JButton;
 import javax.swing.BorderFactory;
+import javax.swing.ButtonGroup;
 import javax.swing.JFileChooser;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 
 import javax.swing.JPanel;
+import javax.swing.JRadioButton;
 import javax.swing.JScrollPane;
 import javax.swing.JTextArea;
 import javax.swing.JTextField;
@@ -27,6 +29,8 @@ import javax.swing.SwingUtilities;
 public class GeneratorFrame extends JFrame {
     private final JTextField excelField = new JTextField(28);
     private final JTextField lrnField = new JTextField(28);
+    private final JRadioButton taricYesRadio = new JRadioButton("DA");
+    private final JRadioButton taricNoRadio = new JRadioButton("NU", true);
     private final JButton generateButton = new JButton("Generate XML");
     private final JLabel statusLabel = new JLabel(" ");
     private final JTextArea consoleArea = new JTextArea(10, 46);
@@ -80,12 +84,33 @@ public class GeneratorFrame extends JFrame {
         panel.add(lrnField, gbc);
         gbc.gridwidth = 1;
 
-        gbc.gridx = 1;
+        JLabel taricLabel = new JLabel("Cu citire din Taric3:");
+        ButtonGroup taricGroup = new ButtonGroup();
+        taricGroup.add(taricYesRadio);
+        taricGroup.add(taricNoRadio);
+        JPanel taricPanel = new JPanel(new GridBagLayout());
+        GridBagConstraints taricGbc = new GridBagConstraints();
+        taricGbc.insets = new Insets(0, 0, 0, 8);
+        taricGbc.gridx = 0;
+        taricPanel.add(taricNoRadio, taricGbc);
+        taricGbc.gridx = 1;
+        taricPanel.add(taricYesRadio, taricGbc);
+
+        gbc.gridx = 0;
         gbc.gridy = 2;
+        panel.add(taricLabel, gbc);
+
+        gbc.gridx = 1;
+        gbc.gridwidth = 2;
+        panel.add(taricPanel, gbc);
+        gbc.gridwidth = 1;
+
+        gbc.gridx = 1;
+        gbc.gridy = 3;
         panel.add(generateButton, gbc);
 
         gbc.gridx = 0;
-        gbc.gridy = 3;
+        gbc.gridy = 4;
         gbc.gridwidth = 3;
         panel.add(statusLabel, gbc);
 
@@ -98,11 +123,11 @@ public class GeneratorFrame extends JFrame {
         progressBar.setValue(0);
         progressBar.setString(" ");
         gbc.gridx = 0;
-        gbc.gridy = 4;
+        gbc.gridy = 5;
         gbc.gridwidth = 3;
         panel.add(progressBar, gbc);
         gbc.gridx = 0;
-        gbc.gridy = 5;
+        gbc.gridy = 6;
         gbc.gridwidth = 3;
         gbc.fill = GridBagConstraints.BOTH;
         gbc.weightx = 1.0;
@@ -176,13 +201,15 @@ public class GeneratorFrame extends JFrame {
         progressBar.setString("Se proceseaza...");
 
         File fileToProcess = selectedFile;
+        boolean useTaric = taricYesRadio.isSelected();
         currentWorker = new SwingWorker<File, Void>() {
             @Override
             protected File doInBackground() throws Exception {
                 logger.info("Pornire generare XML.");
                 logger.info("Fisier Excel: " + fileToProcess.getAbsolutePath());
                 logger.info("LRN: " + lrn);
-                return manifestService.generate(fileToProcess, lrn);
+                logger.info("Cu citire din Taric3: " + (useTaric ? "DA" : "NU"));
+                return manifestService.generate(fileToProcess, lrn, useTaric);
             }
 
             @Override

@@ -34,6 +34,10 @@ public class ManifestService {
     }
 
     public File generate(File excelFile, String lrn) throws Exception {
+        return generate(excelFile, lrn, true);
+    }
+
+    public File generate(File excelFile, String lrn, boolean useTaric) throws Exception {
         if (excelFile == null || !excelFile.isFile()) {
             throw new IllegalArgumentException("Excel file is missing.");
         }
@@ -49,7 +53,12 @@ public class ManifestService {
             }
             logger.info("Total linii selectate: " + items.size());
 
-            descriptionResolver.applyDescriptions(items);
+            if (useTaric) {
+                logger.info("Citire TARIC3 activata.");
+                descriptionResolver.applyDescriptions(items);
+            } else {
+                logger.info("Citire TARIC3 dezactivata. Se folosesc descrierile din Excel.");
+            }
 
             String timestamp = LocalDateTime.now().format(OUTPUT_FORMATTER);
             String fileName = "H1_" + lrn.trim() + "_" + timestamp + ".xml";
