@@ -16,9 +16,11 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -47,7 +49,7 @@ public class ExcelGoodsItemReader {
             Map<String, Integer> columns = headerInfo.columns;
             logger.info("Antet gasit pe randul " + (headerInfo.rowIndex + 1) + ".");
 
-            Map<String, Map<String, Totals>> grouped = new java.util.TreeMap<>();
+            Map<String, Totals> grouped = new java.util.TreeMap<>();
             int lastRow = sheet.getLastRowNum();
             for (int rowIndex = headerInfo.rowIndex + 1; rowIndex <= lastRow; rowIndex++) {
                 Row row = sheet.getRow(rowIndex);
@@ -85,22 +87,21 @@ public class ExcelGoodsItemReader {
                         cellText(row, columns.get(HEADER_PARCELS), formatter, evaluator)));
 
                 grouped
-                        .computeIfAbsent(hawb.trim(), key -> new java.util.TreeMap<>())
                         .computeIfAbsent(hsCode, key -> new Totals())
-                        .add(kgAmount, valueAmount, parcelsAmount);
+                        .add(kgAmount, valueAmount, parcelsAmount, hawb.trim());
             }
 
             List<GoodsItem> items = new ArrayList<>();
-            for (Map.Entry<String, Map<String, Totals>> hawbEntry : grouped.entrySet()) {
-                for (Map.Entry<String, Totals> hsEntry : hawbEntry.getValue().entrySet()) {
-                    Totals totals = hsEntry.getValue();
-                    String kgText = formatNumeric(totals.kg);
-                    String valueText = formatNumeric(totals.value);
-                    String parcelsText = formatNumeric(totals.parcels);
-                    GoodsItem item = new GoodsItem(hsEntry.getKey(), hawbEntry.getKey(), hawbEntry.getKey(),
-                            kgText, valueText, totals.value, parcelsText);
-                    items.add(item);
-                }
+            for (Map.Entry<String, Totals> hsEntry : grouped.entrySet()) {
+                Totals totals = hsEntry.getValue();
+                String kgText = formatNumeric(totals.kg);
+                String valueText = formatNumeric(totals.value);
+                String parcelsText = formatNumeric(totals.parcels);
+                List<String> hawbs = totals.hawbsList();
+                String firstHawb = hawbs.isEmpty() ? "" : hawbs.get(0);
+                GoodsItem item = new GoodsItem(hsEntry.getKey(), firstHawb, firstHawb,
+                        kgText, valueText, totals.value, parcelsText, hawbs);
+                items.add(item);
             }
 
             return items;
@@ -195,8 +196,9 @@ public class ExcelGoodsItemReader {
         private BigDecimal kg = BigDecimal.ZERO;
         private BigDecimal value = BigDecimal.ZERO;
         private BigDecimal parcels = BigDecimal.ZERO;
+        private final Set<String> hawbs = new LinkedHashSet<>();
 
-        private void add(BigDecimal kgAmount, BigDecimal valueAmount, BigDecimal parcelsAmount) {
+        private void add(BigDecimal kgAmount, BigDecimal valueAmount, BigDecimal parcelsAmount, String hawb) {
             if (kgAmount != null) {
                 kg = kg.add(kgAmount);
             }
@@ -206,6 +208,13 @@ public class ExcelGoodsItemReader {
             if (parcelsAmount != null) {
                 parcels = parcels.add(parcelsAmount);
             }
+            if (hawb != null && !hawb.trim().isEmpty()) {
+                hawbs.add(hawb.trim());
+            }
+        }
+
+        private List<String> hawbsList() {
+            return new ArrayList<>(hawbs);
         }
     }
 

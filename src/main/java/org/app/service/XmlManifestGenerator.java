@@ -176,7 +176,7 @@ public class XmlManifestGenerator {
     private void updateGoodsShipmentItem(Element goodsItem, Namespace ns3, int itemNumber, GoodsItem item) {
         setText(goodsItem, "declarationGoodsItemNumber", ns3, String.valueOf(itemNumber));
 
-        insertPreviousDocument(goodsItem, ns3, item.getHawb());
+        insertPreviousDocuments(goodsItem, ns3, item.getHawbs());
 
         Element commodity = goodsItem.getChild("Commodity", ns3);
         if (commodity != null) {
@@ -214,41 +214,46 @@ public class XmlManifestGenerator {
         }
     }
 
-    private void insertPreviousDocument(Element goodsItem, Namespace ns3, String hawb) {
-        if (hawb == null || hawb.trim().isEmpty()) {
+    private void insertPreviousDocuments(Element goodsItem, Namespace ns3, List<String> hawbs) {
+        if (hawbs == null || hawbs.isEmpty()) {
             return;
         }
 
         goodsItem.removeChildren("PreviousDocument", ns3);
 
-        Element previousDocument = new Element("PreviousDocument", ns3);
-        previousDocument.addContent(new Element("sequenceNumber", ns3).setText("1"));
-        previousDocument.addContent(new Element("referenceNumber", ns3).setText(hawb.trim()));
-        previousDocument.addContent(new Element("type", ns3).setText("N740"));
-
         List<Element> additionalRefs = goodsItem.getChildren("AdditionalReference", ns3);
+        int insertIndex = -1;
         if (!additionalRefs.isEmpty()) {
-            int index = goodsItem.indexOf(additionalRefs.get(0));
-            if (index < 0) {
-                goodsItem.addContent(previousDocument);
-            } else {
-                goodsItem.addContent(index, previousDocument);
+            insertIndex = goodsItem.indexOf(additionalRefs.get(0));
+        } else {
+            Element procedure = goodsItem.getChild("Procedure", ns3);
+            if (procedure != null) {
+                int procedureIndex = goodsItem.indexOf(procedure);
+                if (procedureIndex >= 0) {
+                    insertIndex = procedureIndex + 1;
+                }
             }
-            return;
         }
 
-        Element procedure = goodsItem.getChild("Procedure", ns3);
-        if (procedure != null) {
-            int index = goodsItem.indexOf(procedure);
-            if (index < 0) {
+        int sequenceNumber = 1;
+        for (String hawb : hawbs) {
+            if (hawb == null || hawb.trim().isEmpty()) {
+                continue;
+            }
+
+            Element previousDocument = new Element("PreviousDocument", ns3);
+            previousDocument.addContent(new Element("sequenceNumber", ns3).setText(String.valueOf(sequenceNumber)));
+            previousDocument.addContent(new Element("referenceNumber", ns3).setText(hawb.trim()));
+            previousDocument.addContent(new Element("type", ns3).setText("N740"));
+
+            if (insertIndex < 0) {
                 goodsItem.addContent(previousDocument);
             } else {
-                goodsItem.addContent(index + 1, previousDocument);
+                goodsItem.addContent(insertIndex, previousDocument);
+                insertIndex++;
             }
-            return;
+            sequenceNumber++;
         }
-
-        goodsItem.addContent(previousDocument);
     }
 
     private String totalAmount(List<GoodsItem> items) {
