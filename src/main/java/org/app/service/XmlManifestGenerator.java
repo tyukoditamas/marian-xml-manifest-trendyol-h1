@@ -175,6 +175,7 @@ public class XmlManifestGenerator {
 
     private void updateGoodsShipmentItem(Element goodsItem, Namespace ns3, int itemNumber, GoodsItem item) {
         setText(goodsItem, "declarationGoodsItemNumber", ns3, String.valueOf(itemNumber));
+        updateCalculationOfTaxes(goodsItem, ns3);
 
         insertPreviousDocuments(goodsItem, ns3, item.getHawbs());
 
@@ -210,7 +211,14 @@ public class XmlManifestGenerator {
 
         Element origin = goodsItem.getChild("Origin", ns3);
         if (origin != null) {
-            setText(origin, "countryOfOrigin", ns3, item.getOriginCountry());
+            setText(origin, "countryOfOrigin", ns3, "TR");
+        }
+    }
+
+    private void updateCalculationOfTaxes(Element goodsItem, Namespace ns3) {
+        Element calculationOfTaxes = goodsItem.getChild("CalculationOfTaxes", ns3);
+        if (calculationOfTaxes != null) {
+            setText(calculationOfTaxes, "preference", ns3, "400");
         }
     }
 
